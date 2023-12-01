@@ -6,33 +6,9 @@ from torch.utils.data import Dataset
 from skimage import io
 from torchvision.transforms import transforms
 from PIL import Image
+  
 
-class GalaxyDataset1(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None):
-        self.data_frame = pd.read_csv(csv_file)
-        self.root_dir = root_dir
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.data_frame)
-    
-    def __getitem__(self, idx):
-        
-        
-        img_name = self.data_frame.iloc[idx, 0]
-        img_path = f"{self.root_dir}/{str(img_name)[0:6]}/{str(img_name)}.jpg"
-        image = io.imread(img_path)
-        image = Image.fromarray(image)
-
-        label = torch.tensor([self.data_frame.iloc[idx, 9], self.data_frame.iloc[idx, 10]])   
-                
-        if self.transform:
-            image = self.transform(image)
-        
-        return image, label
-    
-
-class GalaxyDataset2(Dataset):
+class GalaxyDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None, max_samples=100):
         self.data_frame = pd.read_csv(csv_file)
         self.root_dir = root_dir
@@ -81,7 +57,7 @@ def main():
                 transforms.ToTensor(),
                 ])
 
-    dataset = GalaxyDataset2(csv_file='GZ1_dataset_new.csv', root_dir="images", transform=transform)
+    dataset = GalaxyDataset(csv_file='GZ1_dataset_new.csv', root_dir="images", transform=transform)
 
     # Splitting the dataset
     train_size = int(0.8 * len(dataset))

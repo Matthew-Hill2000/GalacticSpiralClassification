@@ -12,7 +12,7 @@ import numpy as np
 from lenet import *
 from lenet_ge import *
 import tensorboard
-from GalaxyDataset import GalaxyDataset2
+from GalaxyDataset import GalaxyDataset
 import pandas as pd
 
 LEARNING_RATE = 0.0001
@@ -47,7 +47,7 @@ class Trainer():
                     ])
 
         df = pd.read_csv('GZ1_dataset_new.csv')
-        dataset = GalaxyDataset2(csv_file='GZ1_dataset_new.csv', root_dir="images", transform = transform_1)
+        dataset = GalaxyDataset(csv_file='GZ1_dataset_new.csv', root_dir="images", transform = transform_1)
         dataset_size = len(dataset)
         # throw_size = int(0.8 * dataset_size)
         train_size = int(0.7 * dataset_size)  # Adjust the split ratio as needed
