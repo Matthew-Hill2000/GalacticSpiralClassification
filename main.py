@@ -12,12 +12,12 @@ import numpy as np
 from lenet import *
 from lenet_ge import *
 import tensorboard
-from galaxy_data import GalaxyDataset
+from GalaxyDataset import GalaxyDataset2
 import pandas as pd
 
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 128
-NUM_EPOCHS = 120
+BATCH_SIZE = 1
+NUM_EPOCHS = 10
 NUM_CLASSES = 2
 
 class Trainer():
@@ -26,7 +26,7 @@ class Trainer():
         self.lr = learning_rate
         self.num_epochs = num_epochs
         self.batch_size = batch_size
-        self.test_batch_size = 256
+        self.test_batch_size = 10
         self.criterion = None
         self.optimizer = None
         self.scheduler = None
@@ -39,46 +39,32 @@ class Trainer():
         print(summary(self.model, (3, 28, 28)))
 
     def load_data(self, data):
-        
-        if data=="CIFAR10":
-            ## CIFAR10
-            train_dataset = torchvision.datasets.CIFAR10(root='data', train=True, transform=transforms.ToTensor(), download=True)
-            test_dataset = torchvision.datasets.CIFAR10(root='data', train=False,  transform=transforms.ToTensor())                                               
-            
-            validation_size = 0.2
-            num_samples = len(train_dataset)
-            num_valid = int(num_samples*validation_size)
-            num_train = num_samples - num_valid
 
-            train_dataset, valid_dataset = torch.utils.data.random_split(train_dataset, [num_train, num_valid])
-            
-            self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=self.batch_size, num_workers=8, shuffle=True)
-            self.valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False)
-            self.test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False)                         
+        ## Galaxy Zoo
+        transform_1 = transforms.Compose([
+                    transforms.Resize((160, 160)),
+                    transforms.ToTensor(),
+                    ])
 
-        elif data=="GalaxyZoo":
-            ## Galaxy Zoo
-            transform = transforms.Compose([
-                        transforms.Resize((160, 160)),
-                        transforms.ToTensor(),
-                        ])
+        df = pd.read_csv('GZ1_dataset_new.csv')
+        dataset = GalaxyDataset2(csv_file='GZ1_dataset_new.csv', root_dir="images", transform = transform_1)
+        dataset_size = len(dataset)
+        # throw_size = int(0.8 * dataset_size)
+        train_size = int(0.7 * dataset_size)  # Adjust the split ratio as needed
+        test_size = int(0.2 * dataset_size)
+        valid_size = dataset_size - train_size - test_size #- throw_size
+        train_dataset, test_dataset, valid_dataset = torch.utils.data.random_split(dataset, [train_size, test_size, valid_size])
 
-            df = pd.read_csv('GZ1_dataset.csv')
-            dataset = GalaxyDataset(data_frame=df, transform=transform)
-            
-            dataset_size = len(dataset)
-            train_size = int(0.2 * dataset_size)  # Adjust the split ratio as needed
-            test_size = int(0.75 * dataset_size)
-            valid_size = dataset_size - train_size - test_size
-            train_dataset, test_dataset, valid_dataset = torch.utils.data.random_split(dataset, [train_size, test_size, valid_size])
+        self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=self.batch_size, num_workers=2, shuffle=True)
+        self.test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=self.test_batch_size, num_workers=2, shuffle=False)
+        self.valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=self.batch_size, num_workers=2, shuffle=False)
 
-            self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=self.batch_size, num_workers=8, shuffle=True)
-            self.test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False) 
-            self.valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False)
+        print(f"Train loader size: {len(self.train_loader)}")
+        print(f"Test loader size: {len(self.test_loader)}")
+        print(f"Validation loader size: {len(self.valid_loader)}")
 
-            print(f"Train loader size: {len(self.train_loader)}")
-            print(f"Test loader size: {len(self.test_loader)}")
-            print(f"Validation loader size: {len(self.valid_loader)}")
+        self.test_data, self.test_targets = next(iter(self.train_loader))
+
 
     def load_model(self):
 
@@ -95,31 +81,36 @@ class Trainer():
             self.model.train()
             print(f"Learning Rate: ", self.optimizer.param_groups[0]['lr'])
             
-            for i, (images, labels) in enumerate(self.train_loader):
-                
-                images = images.to(self.device)
-                labels = labels.to(self.device)
-
-                # Forward pass --> Backward Pass
-                outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
-
-                #Backward and optimize
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-
-                if not i % 50:
-                    print ('Epoch: %03d/%03d | Batch %04d/%04d | Cost: %.4f' 
-                            %(epoch+1, NUM_EPOCHS, i, len(self.train_loader), loss))
-                    
-            validation_loss = self.validate()
-            print(f'Validation Loss after epoch {epoch + 1}: {validation_loss:.4f}')          
-            print('Time elapsed: %.2f min' % ((time.time() - start_time)/60))
+            # for i, (images, labels) in enumerate(self.train_loader):
             
-            if validation_loss < validation_loss_min:
-                validation_loss_min = validation_loss
-                torch.save(self.model, "model.ckpt")  
+            images = self.test_data #images.to(self.device)
+            labels = self.test_targets #labels.to(self.device)
+
+            images.to(self.device)
+            labels.to(self.device)
+
+
+            # Forward pass --> Backward Pass
+            outputs = self.model(images)
+            loss = self.criterion(outputs, labels)
+
+            #Backward and optimize
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            # if not i % 50:
+            print ('Epoch: %03d/%03d | Cost: %.4f' 
+                    %(epoch+1, NUM_EPOCHS, loss))
+                    
+            # validation_loss = self.validate()
+            # print(f'Validation Loss after epoch {epoch + 1}: {validation_loss:.4f}')          
+            # print('Time elapsed: %.2f min' % ((time.time() - start_time)/60))
+            
+            # if validation_loss < validation_loss_min:
+            #     validation_loss_min = validation_loss
+            #     torch.save(self.model, "model_new.ckpt")
+            #     torch.save(self.model.state_dict(), 'model.pth')
 
     
         print('Total Training Time: %.2f min' % ((time.time() - start_time)/60))
@@ -155,21 +146,23 @@ class Trainer():
             
             for i, (images, labels) in enumerate(data):
                 
+          
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-                
+                print(labels)
                 outputs = self.model(images)
-
+                print(outputs)
                 _, predicted = torch.max(outputs, 1)
+                
                 n_samples += labels.size(0)
-                n_correct += (predicted == labels).sum().item()
+                n_correct += (outputs == labels).sum().item()
 
-                for i in range(len(labels)):
-                    label = labels[i]
-                    pred = predicted[i]
-                    if (label == pred):
-                        n_class_correct[label] += 1
-                    n_class_samples[label] += 1
+                # for i in range(len(labels)):
+                #     label = labels[i]
+                #     pred = predicted[i]
+                #     if (label == pred):
+                #         n_class_correct[label] += 1
+                #     n_class_samples[label] += 1
             acc = 100.0 * n_correct / n_samples
             return acc
 
@@ -179,7 +172,7 @@ def main():
     ResNet_model.load_data("GalaxyZoo")
     ResNet_model.load_model()
     ResNet_model.train()
-    print('Test accuracy: %.2f%%' % (ResNet_model.test(ResNet_model.test_loader)))
+    # print('Test accuracy: %.2f%%' % (ResNet_model.test(ResNet_model.test_loader)))
 
 if __name__ == '__main__':
     main()

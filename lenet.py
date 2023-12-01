@@ -18,19 +18,12 @@ class LeNet(nn.Module):
 
     def forward(self, x):
         
-        print(x.shape)
         x = self.conv1(x)
-        print(x.shape)
         x = self.relu(x)
-        print(x.shape)
         x = self.maxpool(x)
-        print(x.shape)
         x = self.conv2(x)
-        print(x.shape)
         x = self.relu(x)
-        print(x.shape)
         x = self.maxpool(x)
-        print(x.shape)
         
         x = torch.flatten(x, 1)
         
